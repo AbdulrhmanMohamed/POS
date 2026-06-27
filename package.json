@@ -11,7 +11,7 @@
     "electron": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "dist:win": "electron-builder --win",
+    "dist:win": "electron-builder --win --publish=never",
     "test": "playwright test",
     "test:ui": "playwright test --ui"
   },
