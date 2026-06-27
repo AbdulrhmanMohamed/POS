@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded rect -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  
+  <!-- Shopping bag body -->
+  <path d="M140 200h232l-24 200H164l-24-200z" fill="#ffffff" stroke="#ffffff" stroke-width="4"/>
+  
+  <!-- Bag handles -->
+  <path d="M196 200c0-40 30-80 60-80s60 40 60 80" fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round"/>
+  
+  <!-- Barcode lines on the bag -->
+  <rect x="175" y="250" width="6" height="100" rx="2" fill="#2563eb"/>
+  <rect x="190" y="250" width="14" height="100" rx="3" fill="#2563eb"/>
+  <rect x="213" y="250" width="6" height="100" rx="2" fill="#2563eb"/>
+  <rect x="228" y="270" width="10" height="80" rx="2" fill="#2563eb"/>
+  <rect x="247" y="250" width="6" height="100" rx="2" fill="#2563eb"/>
+  <rect x="262" y="255" width="14" height="95" rx="3" fill="#2563eb"/>
+  <rect x="285" y="250" width="6" height="100" rx="2" fill="#2563eb"/>
+  <rect x="300" y="265" width="10" height="85" rx="2" fill="#2563eb"/>
+  <rect x="319" y="250" width="6" height="100" rx="2" fill="#2563eb"/>
+  
+  <!-- Price tag / coin at bottom right -->
+  <circle cx="330" cy="420" r="36" fill="#f59e0b"/>
+  <text x="330" y="428" font-family="Arial" font-size="32" font-weight="bold" fill="#ffffff" text-anchor="middle">$</text>
+  
+  <!-- Checkmark on the bag -->
+  <path d="M175 300l20 20 40-40" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
