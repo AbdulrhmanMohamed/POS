@@ -160,7 +160,7 @@ function execRun(sql, params = []) {
   const stmt = db.prepare(sql);
   stmt.bind(sanitizeParams(params));
   stmt.run();
-  const lastInsertRowid = db.getLastInsertRowid();
+  const lastInsertRowid = db.exec("SELECT last_insert_rowid()")[0].values[0][0];
   const changes = db.getRowsModified();
   stmt.free();
   saveDb();
