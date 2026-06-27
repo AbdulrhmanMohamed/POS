@@ -19,9 +19,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build frontend
         run: npm run build
@@ -29,10 +36,10 @@ jobs:
       - name: Build installer
         run: npm run dist:win
 
-      - name: Upload installer
+      - name: Upload installer (every push)
         uses: actions/upload-artifact@v4
         with:
-          name: installer
+          name: POS-System
           path: release/
 
   release:
@@ -42,7 +49,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: installer
+          name: POS-System
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
