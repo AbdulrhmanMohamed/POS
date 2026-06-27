@@ -37,8 +37,9 @@ export async function seedDatabase() {
   // ═══════════════════════════════════════
   //  المستخدمين Users
   // ═══════════════════════════════════════
-  await q('INSERT OR IGNORE INTO users (username, password, role) VALUES (?, ?, ?)', ['adminUser', 'admin123', 'admin']);
-  await q('INSERT OR IGNORE INTO users (username, password, role) VALUES (?, ?, ?)', ['cashier1', 'cash123', 'cashier']);
+  await q('DELETE FROM users WHERE username IN (?, ?)', ['adminUser', 'cashier1']);
+  await q('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', ['adminUser', 'admin123', 'admin']);
+  await q('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', ['cashier1', 'cash123', 'cashier']);
 
   // ═══════════════════════════════════════
   //  الموردين Suppliers
