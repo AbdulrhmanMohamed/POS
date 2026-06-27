@@ -54,8 +54,10 @@ async function createWindow() {
     }
   });
 
-  mainWindow.loadURL('http://localhost:3000');
-  if (process.env.NODE_ENV !== 'test') {
+  if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test') {
+    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  } else {
+    mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools();
   }
 }
