@@ -12,7 +12,7 @@ let viteProc;
 
 function startVite() {
   return new Promise((resolve, reject) => {
-    if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test') return resolve();
+    if (app.isPackaged || process.env.NODE_ENV === 'test') return resolve();
 
     viteProc = spawn('npx', ['vite', '--port', '3000', '--strictPort'], {
       cwd: path.join(__dirname, '..'),
@@ -54,7 +54,7 @@ async function createWindow() {
     }
   });
 
-  if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test') {
+  if (app.isPackaged || process.env.NODE_ENV === 'test') {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   } else {
     mainWindow.loadURL('http://localhost:3000');
@@ -67,7 +67,7 @@ autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
 function setupAutoUpdater() {
-  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') return;
+  if (!app.isPackaged || process.env.NODE_ENV === 'test') return;
 
   autoUpdater.checkForUpdates();
 
