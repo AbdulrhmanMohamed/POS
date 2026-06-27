@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
-const Database = require('better-sqlite3');
+const initSqlJs = require('sql.js');
 const path = require('path');
+const fs = require('fs');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 
@@ -42,13 +43,10 @@ function startVite() {
 }
 
 async function createWindow() {
-  const iconPath = path.join(__dirname, 'assets', 'icon.png');
-  const icon = nativeImage.createFromPath(iconPath);
-
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    icon: iconPath,
+    icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -67,7 +65,7 @@ autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
 function setupAutoUpdater() {
-  if (process.platform === 'darwin' || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') return;
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') return;
 
   autoUpdater.checkForUpdates();
 
@@ -113,41 +111,85 @@ function setupAutoUpdater() {
   ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
 }
 
-function initDatabase() {
+// ── sql.js helpers ─────────────────────────────────────────────
+
+let dbPath;
+
+function sanitizeParams(params) {
+  return (params || []).map(v => {
+    if (v === undefined) return null;
+    if (typeof v === 'number' && isNaN(v)) return null;
+    if (typeof v === 'boolean') return v ? 1 : 0;
+    if (v instanceof Date) return v.toISOString();
+    if (typeof v === 'object' && v !== null) return JSON.stringify(v);
+    return v;
+  });
+}
+
+function saveDb() {
+  try {
+    const data = db.export();
+    fs.writeFileSync(dbPath, Buffer.from(data));
+  } catch (e) {
+    console.error('saveDb error:', e.message);
+  }
+}
+
+function execAll(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(sanitizeParams(params));
+  const rows = [];
+  while (stmt.step()) {
+    rows.push(stmt.getAsObject());
+  }
+  stmt.free();
+  return rows;
+}
+
+function execGet(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(sanitizeParams(params));
+  const row = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+  return row;
+}
+
+function execRun(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(sanitizeParams(params));
+  stmt.run();
+  const lastInsertRowid = stmt.getLastInsertRowid();
+  const changes = db.getRowsModified();
+  stmt.free();
+  saveDb();
+  return { lastInsertRowid: Number(lastInsertRowid), changes };
+}
+
+// ── Database initialization ────────────────────────────────────
+
+async function initDatabase(SQL) {
   const userDataPath = app.getPath('userData');
-  const fs = require('fs');
   if (!fs.existsSync(userDataPath)) {
     fs.mkdirSync(userDataPath, { recursive: true });
   }
-  const dbPath = path.join(userDataPath, 'database.db');
-  db = new Database(dbPath);
+  dbPath = path.join(userDataPath, 'database.db');
 
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  if (fs.existsSync(dbPath)) {
+    const buffer = fs.readFileSync(dbPath);
+    db = new SQL.Database(buffer);
+  } else {
+    db = new SQL.Database();
+  }
 
+  db.exec('PRAGMA foreign_keys = ON');
   console.log('✅ SQLite database ready at:', dbPath);
 }
 
-function sanitizeValue(v) {
-  if (v === undefined) return null;
-  if (typeof v === 'number' && isNaN(v)) return null;
-  if (typeof v === 'boolean') return v ? 1 : 0;
-  if (typeof v === 'object' && v !== null) {
-    if (v instanceof Date) return v.toISOString();
-    if (Buffer.isBuffer(v)) return v;
-    return null;
-  }
-  return v;
-}
-
-function sanitizeParams(params) {
-  return (params || []).map(sanitizeValue);
-}
+// ── IPC handlers ───────────────────────────────────────────────
 
 ipcMain.handle('db:all', (_, sql, params = []) => {
   try {
-    const stmt = db.prepare(sql);
-    return stmt.all(...sanitizeParams(params));
+    return execAll(sql, params);
   } catch (err) {
     console.error('db:all error:', err.message);
     throw err;
@@ -156,8 +198,7 @@ ipcMain.handle('db:all', (_, sql, params = []) => {
 
 ipcMain.handle('db:get', (_, sql, params = []) => {
   try {
-    const stmt = db.prepare(sql);
-    return stmt.get(...sanitizeParams(params)) || null;
+    return execGet(sql, params) || null;
   } catch (err) {
     console.error('db:get error:', err.message);
     throw err;
@@ -166,9 +207,7 @@ ipcMain.handle('db:get', (_, sql, params = []) => {
 
 ipcMain.handle('db:run', (_, sql, params = []) => {
   try {
-    const stmt = db.prepare(sql);
-    const result = stmt.run(...sanitizeParams(params));
-    return { lastInsertRowid: result.lastInsertRowid, changes: result.changes };
+    return execRun(sql, params);
   } catch (err) {
     console.error('db:run error:', err.message);
     throw err;
@@ -184,20 +223,20 @@ function generateOperationId() {
 ipcMain.handle('audit:log', (_, entry) => {
   try {
     const operationId = entry.operation_id || generateOperationId();
-    const stmt = db.prepare(`
-      INSERT INTO audit_logs (user_id, action, entity_type, entity_id, table_name, row_id, old_value, new_value, operation_id, is_undone)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-    `);
-    stmt.run(
-      entry.user_id || null,
-      entry.action,
-      entry.entity_type,
-      entry.entity_id || null,
-      entry.table_name || null,
-      entry.row_id || null,
-      entry.old_value ? JSON.stringify(entry.old_value) : null,
-      entry.new_value ? JSON.stringify(entry.new_value) : null,
-      operationId
+    execRun(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, table_name, row_id, old_value, new_value, operation_id, is_undone)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      [
+        entry.user_id || null,
+        entry.action,
+        entry.entity_type,
+        entry.entity_id || null,
+        entry.table_name || null,
+        entry.row_id || null,
+        entry.old_value ? JSON.stringify(entry.old_value) : null,
+        entry.new_value ? JSON.stringify(entry.new_value) : null,
+        operationId
+      ]
     );
     return { operation_id: operationId };
   } catch (err) {
@@ -208,15 +247,16 @@ ipcMain.handle('audit:log', (_, entry) => {
 
 ipcMain.handle('audit:getOperations', (_, limit = 50) => {
   try {
-    return db.prepare(`
-      SELECT operation_id, action, entity_type, entity_id,
-             MIN(created_at) as created_at, COUNT(*) as entry_count
-      FROM audit_logs
-      WHERE operation_id IS NOT NULL
-      GROUP BY operation_id
-      ORDER BY created_at DESC
-      LIMIT ?
-    `).all(limit);
+    return execAll(
+      `SELECT operation_id, action, entity_type, entity_id,
+              MIN(created_at) as created_at, COUNT(*) as entry_count
+       FROM audit_logs
+       WHERE operation_id IS NOT NULL
+       GROUP BY operation_id
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      [limit]
+    );
   } catch (err) {
     console.error('audit:getOperations error:', err.message);
     return [];
@@ -225,7 +265,7 @@ ipcMain.handle('audit:getOperations', (_, limit = 50) => {
 
 ipcMain.handle('audit:getOperationDetail', (_, operationId) => {
   try {
-    return db.prepare(`SELECT * FROM audit_logs WHERE operation_id = ? ORDER BY id ASC`).all(operationId);
+    return execAll('SELECT * FROM audit_logs WHERE operation_id = ? ORDER BY id ASC', [operationId]);
   } catch (err) {
     console.error('audit:getOperationDetail error:', err.message);
     return [];
@@ -234,15 +274,17 @@ ipcMain.handle('audit:getOperationDetail', (_, operationId) => {
 
 ipcMain.handle('audit:undo', (_, operationId) => {
   try {
-    const entries = db.prepare(`
-      SELECT * FROM audit_logs WHERE operation_id = ? AND (is_undone IS NULL OR is_undone = 0) ORDER BY id DESC
-    `).all(operationId);
+    const entries = execAll(
+      'SELECT * FROM audit_logs WHERE operation_id = ? AND (is_undone IS NULL OR is_undone = 0) ORDER BY id DESC',
+      [operationId]
+    );
 
     if (entries.length === 0) {
       return { success: false, error: 'عملية غير موجودة أو تم تراجع عنها مسبقاً' };
     }
 
-    const undoTransaction = db.transaction(() => {
+    db.exec('BEGIN');
+    try {
       for (const entry of entries) {
         const tableName = entry.table_name;
         const rowId = entry.row_id;
@@ -250,7 +292,7 @@ ipcMain.handle('audit:undo', (_, operationId) => {
         switch (entry.action) {
           case 'create': {
             if (tableName && rowId) {
-              db.prepare(`DELETE FROM "${tableName}" WHERE id = ?`).run(rowId);
+              execRun(`DELETE FROM "${tableName}" WHERE id = ?`, [rowId]);
             }
             break;
           }
@@ -258,9 +300,9 @@ ipcMain.handle('audit:undo', (_, operationId) => {
             if (tableName && rowId && entry.old_value) {
               const oldData = JSON.parse(entry.old_value);
               const setClause = Object.keys(oldData).map(k => `"${k}" = ?`).join(', ');
-              const values = Object.values(oldData).map(sanitizeValue);
+              const values = Object.values(oldData).map(sanitizeParams);
               values.push(rowId);
-              db.prepare(`UPDATE "${tableName}" SET ${setClause} WHERE id = ?`).run(...values);
+              execRun(`UPDATE "${tableName}" SET ${setClause} WHERE id = ?`, values);
             }
             break;
           }
@@ -269,8 +311,8 @@ ipcMain.handle('audit:undo', (_, operationId) => {
               const oldData = JSON.parse(entry.old_value);
               const columns = Object.keys(oldData).map(k => `"${k}"`).join(', ');
               const placeholders = Object.keys(oldData).map(() => '?').join(', ');
-              const values = Object.values(oldData).map(sanitizeValue);
-              db.prepare(`INSERT OR IGNORE INTO "${tableName}" (${columns}) VALUES (${placeholders})`).run(...values);
+              const values = Object.values(oldData).map(sanitizeParams);
+              execRun(`INSERT OR IGNORE INTO "${tableName}" (${columns}) VALUES (${placeholders})`, values);
             }
             break;
           }
@@ -278,26 +320,30 @@ ipcMain.handle('audit:undo', (_, operationId) => {
             if (tableName === 'purchase_orders' && entry.old_value) {
               const oldData = JSON.parse(entry.old_value);
               if (oldData.status) {
-                db.prepare('UPDATE purchase_orders SET status = ?, received_at = NULL WHERE id = ?').run(oldData.status, rowId);
+                execRun('UPDATE purchase_orders SET status = ?, received_at = NULL WHERE id = ?', [oldData.status, rowId]);
               }
             } else if (tableName === 'products' && entry.old_value) {
               const oldData = JSON.parse(entry.old_value);
               const setClause = Object.keys(oldData).map(k => `"${k}" = ?`).join(', ');
-              const values = Object.values(oldData).map(sanitizeValue);
+              const values = Object.values(oldData).map(sanitizeParams);
               values.push(rowId);
-              db.prepare(`UPDATE "${tableName}" SET ${setClause} WHERE id = ?`).run(...values);
+              execRun(`UPDATE "${tableName}" SET ${setClause} WHERE id = ?`, values);
             } else if (tableName === 'cashier_movements' && rowId) {
-              db.prepare('DELETE FROM cashier_movements WHERE id = ?').run(rowId);
+              execRun('DELETE FROM cashier_movements WHERE id = ?', [rowId]);
             }
             break;
           }
         }
       }
 
-      db.prepare('UPDATE audit_logs SET is_undone = 1 WHERE operation_id = ?').run(operationId);
-    });
+      execRun('UPDATE audit_logs SET is_undone = 1 WHERE operation_id = ?', [operationId]);
+      db.exec('COMMIT');
+      saveDb();
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
 
-    undoTransaction();
     return { success: true };
   } catch (err) {
     console.error('audit:undo error:', err.message);
@@ -307,15 +353,17 @@ ipcMain.handle('audit:undo', (_, operationId) => {
 
 ipcMain.handle('audit:redo', (_, operationId) => {
   try {
-    const entries = db.prepare(`
-      SELECT * FROM audit_logs WHERE operation_id = ? AND is_undone = 1 ORDER BY id ASC
-    `).all(operationId);
+    const entries = execAll(
+      'SELECT * FROM audit_logs WHERE operation_id = ? AND is_undone = 1 ORDER BY id ASC',
+      [operationId]
+    );
 
     if (entries.length === 0) {
       return { success: false, error: 'عملية غير موجودة أو تم إعادتها مسبقاً' };
     }
 
-    const redoTransaction = db.transaction(() => {
+    db.exec('BEGIN');
+    try {
       for (const entry of entries) {
         const tableName = entry.table_name;
         const rowId = entry.row_id;
@@ -326,8 +374,8 @@ ipcMain.handle('audit:redo', (_, operationId) => {
               const newData = JSON.parse(entry.new_value);
               const columns = Object.keys(newData).map(k => `"${k}"`).join(', ');
               const placeholders = Object.keys(newData).map(() => '?').join(', ');
-              const values = Object.values(newData).map(sanitizeValue);
-              db.prepare(`INSERT OR IGNORE INTO "${tableName}" (${columns}) VALUES (${placeholders})`).run(...values);
+              const values = Object.values(newData).map(sanitizeParams);
+              execRun(`INSERT OR IGNORE INTO "${tableName}" (${columns}) VALUES (${placeholders})`, values);
             }
             break;
           }
@@ -335,15 +383,15 @@ ipcMain.handle('audit:redo', (_, operationId) => {
             if (tableName && rowId && entry.new_value) {
               const newData = JSON.parse(entry.new_value);
               const setClause = Object.keys(newData).map(k => `"${k}" = ?`).join(', ');
-              const values = Object.values(newData).map(sanitizeValue);
+              const values = Object.values(newData).map(sanitizeParams);
               values.push(rowId);
-              db.prepare(`UPDATE "${tableName}" SET ${setClause} WHERE id = ?`).run(...values);
+              execRun(`UPDATE "${tableName}" SET ${setClause} WHERE id = ?`, values);
             }
             break;
           }
           case 'delete': {
             if (tableName && rowId) {
-              db.prepare(`DELETE FROM "${tableName}" WHERE id = ?`).run(rowId);
+              execRun(`DELETE FROM "${tableName}" WHERE id = ?`, [rowId]);
             }
             break;
           }
@@ -352,29 +400,33 @@ ipcMain.handle('audit:redo', (_, operationId) => {
               const newData = JSON.parse(entry.new_value);
               if (newData.status) {
                 const now = new Date().toISOString().replace('T', ' ').split('.')[0];
-                db.prepare('UPDATE purchase_orders SET status = ?, received_at = ? WHERE id = ?').run(newData.status, now, rowId);
+                execRun('UPDATE purchase_orders SET status = ?, received_at = ? WHERE id = ?', [newData.status, now, rowId]);
               }
             } else if (tableName === 'products' && entry.new_value) {
               const newData = JSON.parse(entry.new_value);
               if (newData.stock !== undefined) {
-                db.prepare(`UPDATE "${tableName}" SET stock = ? WHERE id = ?`).run(sanitizeValue(newData.stock), rowId);
+                execRun('UPDATE products SET stock = ? WHERE id = ?', [newData.stock, rowId]);
               }
             } else if (tableName === 'cashier_movements' && entry.new_value) {
               const newData = JSON.parse(entry.new_value);
               const columns = Object.keys(newData).map(k => `"${k}"`).join(', ');
               const placeholders = Object.keys(newData).map(() => '?').join(', ');
-              const values = Object.values(newData).map(sanitizeValue);
-              db.prepare(`INSERT OR IGNORE INTO "${tableName}" (${columns}) VALUES (${placeholders})`).run(...values);
+              const values = Object.values(newData).map(sanitizeParams);
+              execRun(`INSERT OR IGNORE INTO "${tableName}" (${columns}) VALUES (${placeholders})`, values);
             }
             break;
           }
         }
       }
 
-      db.prepare('UPDATE audit_logs SET is_undone = 0 WHERE operation_id = ?').run(operationId);
-    });
+      execRun('UPDATE audit_logs SET is_undone = 0 WHERE operation_id = ?', [operationId]);
+      db.exec('COMMIT');
+      saveDb();
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
 
-    redoTransaction();
     return { success: true };
   } catch (err) {
     console.error('audit:redo error:', err.message);
@@ -388,7 +440,6 @@ ipcMain.handle('get-printers', async () => {
 
 ipcMain.handle('print:receipt', async (_, htmlContent) => {
   try {
-    const { BrowserWindow } = require('electron');
     const printWin = new BrowserWindow({
       width: 400,
       height: 600,
@@ -412,17 +463,25 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error('Failed to start Vite, trying to load app anyway:', err.message);
   }
+
   try {
-    initDatabase();
+    const SQL = await initSqlJs({
+      locateFile: f => path.join(__dirname, f)
+    });
+    await initDatabase(SQL);
   } catch (err) {
     console.error('Failed to init database:', err.message);
   }
+
   await createWindow();
   setupAutoUpdater();
 });
 
 app.on('window-all-closed', () => {
-  if (db) db.close();
+  if (db) {
+    saveDb();
+    db.close();
+  }
   if (viteProc) viteProc.kill();
   app.quit();
 });
