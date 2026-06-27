@@ -33,6 +33,10 @@
       "owner": "AbdulrhmanMohamed",
       "repo": "POS"
     },
+    "mac": {
+      "icon": "build/icon.icns",
+      "target": ["dmg"]
+    },
     "win": {
       "icon": "build/icon.png",
       "target": [
