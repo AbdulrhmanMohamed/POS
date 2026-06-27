@@ -34,11 +34,11 @@
       "repo": "POS"
     },
     "mac": {
-      "icon": "build/icon.icns",
+      "icon": "electron/assets/icon.icns",
       "target": ["dmg"]
     },
     "win": {
-      "icon": "build/icon.ico",
+      "icon": "electron/assets/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -51,8 +51,8 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "unicode": true,
-      "installerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico",
+      "installerIcon": "electron/assets/icon.ico",
+      "installerHeaderIcon": "electron/assets/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "POS System"
