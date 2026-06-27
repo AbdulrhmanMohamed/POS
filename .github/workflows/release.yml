@@ -11,10 +11,7 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -26,18 +23,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build app (macOS)
-        if: runner.os == 'macOS'
-        run: npm run dist:mac
-
-      - name: Build app (Windows)
-        if: runner.os == 'Windows'
+      - name: Build app
         run: npm run dist:win
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: installer-${{ runner.os }}
+          name: installer
           path: release/
 
   release:
@@ -47,14 +39,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: installer-*
-          merge-multiple: true
+          name: installer
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            *.dmg
             *.exe
             *.zip
           generate_release_notes: true

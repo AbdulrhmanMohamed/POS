@@ -7,26 +7,21 @@
 
 ---
 
-## P0: Cross-Platform Build (Windows + macOS only, no Linux)
+## P0: Windows Build Only
 
 ### Already Done
-- [x] `electron-builder` installed with `mac`, `win`, `linux` configs in `package.json`
+- [x] `electron-builder` installed with Windows config in `package.json`
 - [x] `better-sqlite3` rebuild on postinstall via `@electron/rebuild`
 - [x] `asarUnpack` for the native SQLite module
-- [x] Paths use `app.getPath('userData')` — already cross-platform
-- [x] Build commands exist: `dist:mac`, `dist:win`, `dist:linux`
+- [x] GitHub Actions CI building Windows `.exe` on push/tag
 
 ### Still Needed
-- [ ] **P0** Generate `build/icon.png` (256×256+ pixels) for Windows & Linux
-- [ ] **P0** Verify `postinstall` script works on all three OSes
-- [ ] **P1** Build and test `.dmg` (macOS) / `.exe` (Windows)
-- [ ] **P1** Handle OS-specific differences (menu bar, notifications, file paths)
-- [ ] **P2** Add Windows installer config (NSIS or MSI options in electron-builder)
+- [ ] **P0** Verify `postinstall` script works on Windows
+- [ ] **P1** Build and test `.exe` installer on clean Windows machine
 
 ### Known Constraints
 - Cannot build `.exe` from macOS without Wine or a CI runner
-- Cannot build `.dmg` from Windows
-- Recommended: use **GitHub Actions** CI to build both platforms automatically
+- GitHub Actions CI handles Windows builds automatically
 
 ---
 

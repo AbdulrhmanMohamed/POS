@@ -6,7 +6,7 @@
 
 [![GitHub Release](https://img.shields.io/github/v/release/AbdulrhmanMohamed/POS?style=for-the-badge&logo=github&color=brightgreen)](https://github.com/AbdulrhmanMohamed/POS/releases)
 [![Downloads](https://img.shields.io/github/downloads/AbdulrhmanMohamed/POS/total?style=for-the-badge&logo=github&color=blue)](https://github.com/AbdulrhmanMohamed/POS/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-blue?style=for-the-badge&logo=electron)](https://github.com/AbdulrhmanMohamed/POS/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows-blue?style=for-the-badge&logo=windows)](https://github.com/AbdulrhmanMohamed/POS/releases)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 
 ---
@@ -122,10 +122,9 @@ I know. Most free POS apps are glorified spreadsheets with bugs. This one is dif
 | Platform | File | Size |
 |----------|------|------|
 | 🪟 **Windows** | `POS-System-Setup-x.x.x.exe` | ~80 MB |
-| 🍎 **macOS** | `POS-System-x.x.x.dmg` | ~80 MB |
 
 **Requirements:**
-- Windows 10+ or macOS 12+
+- Windows 10+
 - 500 MB disk space
 - No internet required (after download)
 
@@ -141,7 +140,7 @@ git clone https://github.com/AbdulrhmanMohamed/POS.git
 cd POS
 npm install
 npm run dev     # Start Vite dev server
-npm run electron # Launch Electron
+npm run electron # Launch Electron (Windows only for production)
 ```
 
 ---
@@ -154,7 +153,7 @@ npm run electron # Launch Electron
 - [x] ✅ Reports & BI
 - [x] ✅ Audit log with undo/redo
 - [x] ✅ Auto-update via GitHub
-- [x] ✅ Windows + macOS support
+- [x] ✅ Windows support
 - [ ] 🔜 Customer loyalty program
 - [ ] 🔜 Multi-store support
 - [ ] 🔜 Touchscreen-optimized mode

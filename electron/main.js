@@ -67,7 +67,7 @@ autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
 function setupAutoUpdater() {
-  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') return;
+  if (process.platform === 'darwin' || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') return;
 
   autoUpdater.checkForUpdates();
 

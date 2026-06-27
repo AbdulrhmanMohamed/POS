@@ -11,9 +11,7 @@
     "electron": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
-    "dist:linux": "electron-builder --linux",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "postinstall": "@electron/rebuild -f -w better-sqlite3"
@@ -36,11 +34,6 @@
       "provider": "github",
       "owner": "AbdulrhmanMohamed",
       "repo": "POS"
-    },
-    "mac": {
-      "icon": "build/icon.icns",
-      "category": "public.app-category.business",
-      "target": ["dmg"]
     },
     "win": {
       "icon": "build/icon.png",
