@@ -38,7 +38,7 @@
       "target": ["dmg"]
     },
     "win": {
-      "icon": "build/icon.png",
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -51,8 +51,8 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "unicode": true,
-      "installerIcon": "build/icon.png",
-      "installerHeaderIcon": "build/icon.png",
+      "installerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "POS System"
